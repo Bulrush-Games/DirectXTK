@@ -18,20 +18,29 @@ trigger:
     - main
   paths:
     exclude:
-    - README.md
-    - HISTORY.md
-    - SECURITY.md
+    - '*.md'
     - LICENSE
+    - '.nuget/*'
+    - build/*.cmd
+    - build/*.json
+    - build/*.props
+    - build/*.ps1
+    - build/*.targets
+
 pr:
   branches:
     include:
     - main
   paths:
     exclude:
-    - README.md
-    - HISTORY.md
-    - SECURITY.md
+    - '*.md'
     - LICENSE
+    - '.nuget/*'
+    - build/*.cmd
+    - build/*.json
+    - build/*.props
+    - build/*.ps1
+    - build/*.targets
   drafts: false
 
 resources:
@@ -46,6 +55,7 @@ pool:
   vmImage: windows-2022
 
 variables:
+  Codeql.Enabled: false
   VCPKG_CMAKE_DIR: '$(VCPKG_ROOT)/scripts/buildsystems/vcpkg.cmake'
   GITHUB_PAT: $(GITHUBPUBLICTOKEN)
   WIN11_SDK: '10.0.22000.0'

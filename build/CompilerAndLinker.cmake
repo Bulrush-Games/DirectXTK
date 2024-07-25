@@ -57,13 +57,17 @@ endif()
 #--- Target architecture switches
 if(XBOX_CONSOLE_TARGET STREQUAL "scarlett")
     list(APPEND COMPILER_SWITCHES $<IF:$<CXX_COMPILER_ID:MSVC>,/favor:AMD64 /arch:AVX2,-march=znver2>)
-elseif(XBOX_CONSOLE_TARGET STREQUAL "xboxone|durago")
+elseif(XBOX_CONSOLE_TARGET MATCHES "xboxone|durango")
     list(APPEND COMPILER_SWITCHES  $<IF:$<CXX_COMPILER_ID:MSVC>,/favor:AMD64 /arch:AVX,-march=btver2>)
 elseif(NOT (${DIRECTX_ARCH} MATCHES "^arm"))
     if((${DIRECTX_ARCH} MATCHES "x86") OR (CMAKE_SIZEOF_VOID_P EQUAL 4))
         set(ARCH_SSE2 $<$<CXX_COMPILER_ID:MSVC,Intel>:/arch:SSE2> $<$<NOT:$<CXX_COMPILER_ID:MSVC,Intel>>:-msse2>)
     else()
         set(ARCH_SSE2 $<$<NOT:$<CXX_COMPILER_ID:MSVC,Intel>>:-msse2>)
+    endif()
+
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+        list(APPEND ARCH_SSE2 -mfpmath=sse)
     endif()
 
     list(APPEND COMPILER_SWITCHES ${ARCH_SSE2})
@@ -81,7 +85,7 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
 
     if(CMAKE_INTERPROCEDURAL_OPTIMIZATION)
       message(STATUS "Building using Whole Program Optimization")
-      list(APPEND COMPILER_SWITCHES /Gy /Gw)
+      list(APPEND COMPILER_SWITCHES $<$<NOT:$<CONFIG:Debug>>:/Gy /Gw>)
     endif()
 
     if(OpenMP_CXX_FOUND)
@@ -112,7 +116,9 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
     endif()
 
     if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.35)
-      list(APPEND COMPILER_SWITCHES /Zc:checkGwOdr)
+      if(CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+        list(APPEND COMPILER_SWITCHES $<$<NOT:$<CONFIG:Debug>>:/Zc:checkGwOdr>)
+      endif()
 
       if(NOT (DEFINED XBOX_CONSOLE_TARGET))
         list(APPEND COMPILER_SWITCHES $<$<VERSION_GREATER_EQUAL:${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION},10.0.22000>:/Zc:templateScope>)

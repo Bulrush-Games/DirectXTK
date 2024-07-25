@@ -12,8 +12,42 @@ schedules:
     include:
     - main
 
-trigger: none
-pr: none
+trigger:
+  branches:
+    include:
+    - main
+  paths:
+    exclude:
+    - '*.md'
+    - LICENSE
+    - CMake*
+    - '.nuget/*'
+    - build/*.cmake
+    - build/*.cmd
+    - build/*.in
+    - build/*.json
+    - build/*.props
+    - build/*.ps1
+    - build/*.targets
+
+pr:
+  branches:
+    include:
+    - main
+  paths:
+    exclude:
+    - '*.md'
+    - LICENSE
+    - CMake*
+    - '.nuget/*'
+    - build/*.cmake
+    - build/*.cmd
+    - build/*.in
+    - build/*.json
+    - build/*.props
+    - build/*.ps1
+    - build/*.targets
+  drafts: false
 
 resources:
   repositories:
@@ -27,6 +61,7 @@ pool:
   vmImage: windows-2022
 
 variables:
+  Codeql.Enabled: false
   GUID_FEED: $(ADOFeedGUID)
 
 jobs:

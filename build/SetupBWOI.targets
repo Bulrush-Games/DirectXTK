@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="SetupVCTargets" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
+  <!--
+      Copyright (c) Microsoft Corporation.
+      Licensed under the MIT License.
+  -->
+
   <PropertyGroup>
     <ExtractedFolder Condition="'$(ExtractedFolder)'==''">C:\xtracted\</ExtractedFolder>
     <ExtractedFolder Condition="!HasTrailingSlash('$(ExtractedFolder)')">$(ExtractedFolder)\</ExtractedFolder>
@@ -11,9 +16,6 @@
       If any of these folders is not present then we assume that the VCTargets has not been setup
   -->
   <ItemGroup>
-    <BWOIVCFolders Include="$(ExtractedFolder)VCTargets150\" />
-    <BWOIVCFolders Include="$(ExtractedFolder)VCTargets150\Platforms\" />
-    <BWOIVCFolders Include="$(ExtractedFolder)VCTargets150\Platforms\gaming.desktop.x64" />
     <BWOIVCFolders Include="$(ExtractedFolder)VCTargets160\" />
     <BWOIVCFolders Include="$(ExtractedFolder)VCTargets160\Platforms\" />
     <BWOIVCFolders Include="$(ExtractedFolder)VCTargets160\Platforms\gaming.desktop.x64" />
@@ -88,16 +90,16 @@ SixtyFourBit = (IntPtr.Size == 8) ? true : false;
         Text="Only supports VS 2019 or VS 2022" />
 
     <!-- Set up files for v141 platform toolset projects -->
-    <ItemGroup>
+    <ItemGroup Condition="'$(GDKEditionNumber)' &lt; '241000'">
       <SourceVCTargetsFilesV150 Include="$(MSBuildExtensionsPath32)\Microsoft\VC\v150\**" />
     </ItemGroup>
 
-    <ItemGroup>
+    <ItemGroup Condition="'$(GDKEditionNumber)' &lt; '241000'">
       <GDKVCTargetsFilesV150 Include="$(ExtractedFolder)GDK\Microsoft.GDK.PC.$(GDKEditionNumber)\native\$(GDKEditionNumber)\GRDK\$(_VSFolder)\flatDeployment\MSBuild\Microsoft\VC\v150\**" />
     </ItemGroup>
 
-    <Copy SkipUnchangedFiles="true" SourceFiles="@(SourceVCTargetsFilesV150)" DestinationFolder="$(ExtractedFolder)VCTargets150\%(RecursiveDir)/" />
-    <Copy SourceFiles="@(GDKVCTargetsFilesV150)" DestinationFolder="$(ExtractedFolder)VCTargets150\%(RecursiveDir)/" />
+    <Copy Condition="'$(GDKEditionNumber)' &lt; '241000'" SkipUnchangedFiles="true" SourceFiles="@(SourceVCTargetsFilesV150)" DestinationFolder="$(ExtractedFolder)VCTargets150\%(RecursiveDir)/" />
+    <Copy Condition="'$(GDKEditionNumber)' &lt; '241000'" SourceFiles="@(GDKVCTargetsFilesV150)" DestinationFolder="$(ExtractedFolder)VCTargets150\%(RecursiveDir)/" />
 
     <!-- Set up files for v142 platform toolset projects -->
     <ItemGroup>
@@ -127,4 +129,3 @@ SixtyFourBit = (IntPtr.Size == 8) ? true : false;
 
   <Target Name="SetupVCTargets" DependsOnTargets="_CheckMSBuild64;_ProbeForExtractedVCTargets;_CreateVCTargetsFolder" />
 </Project>
-

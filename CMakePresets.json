@@ -38,6 +38,15 @@
       "cacheVariables": { "DIRECTX_ARCH": "arm64" },
       "hidden": true
     },
+    {
+      "name": "ARM64EC",
+      "architecture": {
+        "value": "arm64ec",
+        "strategy": "external"
+      },
+      "cacheVariables": { "DIRECTX_ARCH": "arm64ec" },
+      "hidden": true
+    },
 
     {
       "name": "Debug",
@@ -209,6 +218,8 @@
     { "name": "x86-Release-Win10"  , "description": "MSVC for x86 (Release) for Windows 10", "inherits": [ "base", "x86", "Release", "MSVC", "Win10" ] },
     { "name": "arm64-Debug-Win10"  , "description": "MSVC for ARM64 (Debug) for Windows 10", "inherits": [ "base", "ARM64", "Debug", "MSVC", "Win10" ] },
     { "name": "arm64-Release-Win10", "description": "MSVC for ARM64 (Release) for Windows 10", "inherits": [ "base", "ARM64", "Release", "MSVC", "Win10" ] },
+    { "name": "arm64ec-Debug-Win10"  , "description": "MSVC for ARM64EC (Debug) for Windows 10", "inherits": [ "base", "ARM64EC", "Debug", "MSVC", "Win10" ], "environment": { "CXXFLAGS": "/arm64EC" } },
+    { "name": "arm64ec-Release-Win10", "description": "MSVC for ARM64EC (Release) for Windows 10", "inherits": [ "base", "ARM64EC", "Release", "MSVC", "Win10" ], "environment": { "CXXFLAGS": "/arm64EC" } },
 
     { "name": "x64-Debug-UWP"    , "description": "MSVC for x64 (Debug) for UWP", "inherits": [ "base", "x64", "Debug", "MSVC", "UWP" ] },
     { "name": "x64-Release-UWP"  , "description": "MSVC for x64 (Release) for UWP", "inherits": [ "base", "x64", "Release", "MSVC", "UWP" ] },
@@ -258,6 +269,9 @@
     { "name": "x64-Release-Win7-Clang", "description": "Clang/LLVM for x64 (Release) for Windows 7 w/ XAudio2Redist", "inherits": [ "base", "x64", "Release", "Clang", "Win7", "VCPKG" ] },
     { "name": "x86-Debug-Win7-Clang"  , "description": "Clang/LLVM for x86 (Debug) for Windows 7 w/ XAudio2Redist", "inherits": [ "base", "x86", "Debug", "Clang", "Win7", "VCPKG" ], "environment": { "CXXFLAGS": "-m32" } },
     { "name": "x86-Release-Win7-Clang", "description": "Clang/LLVM for x86 (Release) for Windows 7 w/ XAudio2Redist", "inherits": [ "base", "x86", "Release", "Clang", "Win7", "VCPKG" ], "environment": { "CXXFLAGS": "-m32" } },
+
+    { "name": "x64-Debug-GDK-Clang"   , "description": "Clang/LLVM for x64 (Debug) with Microsoft GDK", "inherits": [ "base", "x64", "Debug", "Clang", "GDK" ] },
+    { "name": "x64-Release-GDK-Clang" , "description": "Clang/LLVM for x64 (Release) with Microsoft GDK", "inherits": [ "base", "x64", "Release", "Clang", "GDK" ] },
 
     { "name": "x64-Debug-MinGW"  , "description": "MinG-W64 (Debug)", "inherits": [ "base", "x64", "Debug", "GNUC", "VCPKG", "MinGW64", "Win7" ] },
     { "name": "x64-Release-MinGW", "description": "MinG-W64 (Release)", "inherits": [ "base", "x64", "Release", "GNUC", "VCPKG", "MinGW64", "Win7" ] },
