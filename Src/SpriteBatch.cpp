@@ -63,6 +63,12 @@ XM_ALIGNED_STRUCT(16) SpriteBatch::Impl : public AlignedNew<SpriteBatch::Impl>
 public:
     explicit Impl(_In_ ID3D11DeviceContext* deviceContext);
 
+    Impl(const Impl&) = delete;
+    Impl& operator=(const Impl&) = delete;
+
+    Impl(Impl&&) = default;
+    Impl& operator=(Impl&&) = default;
+
     void XM_CALLCONV Begin(SpriteSortMode sortMode,
         _In_opt_ ID3D11BlendState* blendState,
         _In_opt_ ID3D11SamplerState* samplerState,
@@ -789,8 +795,8 @@ void SpriteBatch::Impl::RenderBatch(ID3D11ShaderResourceView* texture, SpriteInf
     #endif
 
             // Ok lads, the time has come for us draw ourselves some sprites!
-        auto const startIndex = static_cast<UINT>(mContextResources->vertexBufferPosition * IndicesPerSprite);
-        auto const indexCount = static_cast<UINT>(batchSize * IndicesPerSprite);
+        const auto startIndex = static_cast<UINT>(mContextResources->vertexBufferPosition * IndicesPerSprite);
+        const auto indexCount = static_cast<UINT>(batchSize * IndicesPerSprite);
 
         deviceContext->DrawIndexed(indexCount, startIndex, 0);
 

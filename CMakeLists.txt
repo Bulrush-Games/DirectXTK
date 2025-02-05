@@ -3,7 +3,7 @@
 
 cmake_minimum_required (VERSION 3.20)
 
-set(DIRECTXTK_VERSION 1.8.8)
+set(DIRECTXTK_VERSION 1.9.0)
 
 if(WINDOWS_STORE OR (DEFINED XBOX_CONSOLE_TARGET))
   set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY")
@@ -19,7 +19,7 @@ option(BUILD_TOOLS "Build XWBTool" ON)
 
 option(BUILD_XAUDIO_WIN10 "Build for XAudio 2.9" OFF)
 option(BUILD_XAUDIO_WIN8 "Build for XAudio 2.8" ON)
-option(BUILD_XAUDIO_WIN7 "Build for XAudio2Redist" OFF)
+option(BUILD_XAUDIO_REDIST "Build for XAudio2Redist" OFF)
 
 option(BUILD_GAMEINPUT "Build for GameInput" OFF)
 option(BUILD_WGI "Build for Windows.Gaming.Input" OFF)
@@ -31,6 +31,8 @@ option(ENABLE_SPECTRE_MITIGATION "Build using /Qspectre for MSVC" OFF)
 option(DISABLE_MSVC_ITERATOR_DEBUGGING "Disable iterator debugging in Debug configurations with the MSVC CRT" OFF)
 
 option(ENABLE_CODE_ANALYSIS "Use Static Code Analysis on build" OFF)
+
+option(ENABLE_CODE_COVERAGE "Build with code-coverage" OFF)
 
 option(USE_PREBUILT_SHADERS "Use externally built HLSL shaders" OFF)
 
@@ -61,6 +63,7 @@ elseif(WINDOWS_STORE)
 endif()
 
 include(GNUInstallDirs)
+include(build/CompilerAndLinker.cmake)
 
 #--- Library
 set(LIBRARY_HEADERS
@@ -85,6 +88,7 @@ set(LIBRARY_SOURCES
     Src/BasicEffect.cpp
     Src/BasicPostProcess.cpp
     Src/BufferHelpers.cpp
+    Src/CMO.h
     Src/CommonStates.cpp
     Src/DDSTextureLoader.cpp
     Src/DebugEffect.cpp
@@ -173,13 +177,17 @@ set(SHADER_SOURCES ${SHADER_SOURCES}
     Src/Shaders/Utilities.fxh)
 
 if(MINGW)
-   set(BUILD_XAUDIO_WIN10 OFF)
-   set(BUILD_XAUDIO_WIN8 OFF)
+  set(BUILD_XAUDIO_WIN10 OFF)
+  set(BUILD_XAUDIO_WIN8 OFF)
+endif()
+
+if(${DIRECTX_ARCH} MATCHES "^arm")
+  set(BUILD_XAUDIO_REDIST OFF)
 endif()
 
 if(WINDOWS_STORE
    OR BUILD_XAUDIO_WIN10 OR BUILD_XAUDIO_WIN8
-   OR BUILD_XAUDIO_WIN7)
+   OR BUILD_XAUDIO_REDIST)
     set(LIBRARY_HEADERS ${LIBRARY_HEADERS}
         Inc/Audio.h)
 
@@ -220,12 +228,19 @@ else()
 endif()
 
 if(NOT USE_PREBUILT_SHADERS)
+    if(BUILD_XBOXONE_SHADERS)
+    else()
+        find_program(DIRECTX_FXC_TOOL FXC.EXE
+          HINTS "C:/Program Files (x86)/Windows Kits/10/bin/${CMAKE_SYSTEM_VERSION}/${DIRECTX_HOST_ARCH}"
+                "C:/Program Files (x86)/Windows Kits/10/bin/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/${DIRECTX_HOST_ARCH}")
+        message(STATUS "Using LegacyShaderCompiler found in ${DIRECTX_FXC_TOOL}")
+    endif()
     add_custom_command(
         OUTPUT "${COMPILED_SHADERS}/SpriteEffect_SpriteVertexShader.inc"
         MAIN_DEPENDENCY "${PROJECT_SOURCE_DIR}/Src/Shaders/CompileShaders.cmd"
         DEPENDS ${SHADER_SOURCES}
         COMMENT "Generating HLSL shaders..."
-        COMMAND ${CMAKE_COMMAND} -E env CompileShadersOutput="${COMPILED_SHADERS}" CompileShaders.cmd ARGS ${ShaderOpts} > "${COMPILED_SHADERS}/compileshaders.log"
+        COMMAND ${CMAKE_COMMAND} -E env CompileShadersOutput="${COMPILED_SHADERS}" $<$<BOOL:${DIRECTX_FXC_TOOL}>:LegacyShaderCompiler=${DIRECTX_FXC_TOOL}> CompileShaders.cmd ARGS ${ShaderOpts} > "${COMPILED_SHADERS}/compileshaders.log"
         WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/Src/Shaders"
         USES_TERMINAL)
 endif()
@@ -250,24 +265,25 @@ target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_11)
 
 if(WINDOWS_STORE
    OR BUILD_XAUDIO_WIN10 OR BUILD_XAUDIO_WIN8
-   OR BUILD_XAUDIO_WIN7)
+   OR BUILD_XAUDIO_REDIST)
     target_include_directories(${PROJECT_NAME} PRIVATE Audio)
 endif()
 
 if(MINGW)
     find_package(directxmath CONFIG REQUIRED)
+    target_link_libraries(${PROJECT_NAME} PUBLIC Microsoft::DirectXMath)
 else()
     find_package(directxmath CONFIG QUIET)
 endif()
 
 if(directxmath_FOUND)
     message(STATUS "Using DirectXMath package")
-    target_link_libraries(${PROJECT_NAME} PUBLIC Microsoft::DirectXMath)
+    target_link_libraries(${PROJECT_NAME} PRIVATE Microsoft::DirectXMath)
 endif()
 
-if(BUILD_XAUDIO_WIN7
+if(BUILD_XAUDIO_REDIST
    AND (NOT BUILD_XAUDIO_WIN10) AND (NOT BUILD_XAUDIO_WIN8) AND (NOT WINDOWS_STORE))
-    message(STATUS "Using XAudio2Redist for DirectX Tool Kit for Audio on Windows 7.")
+    message(STATUS "Using XAudio2Redist for DirectX Tool Kit for Audio.")
     find_package(xaudio2redist CONFIG REQUIRED)
     target_link_libraries(${PROJECT_NAME} PUBLIC Microsoft::XAudio2Redist)
     target_compile_definitions(${PROJECT_NAME} PUBLIC USING_XAUDIO2_REDIST)
@@ -277,10 +293,15 @@ include(CheckIncludeFileCXX)
 
 if(BUILD_GAMEINPUT)
     message(STATUS "Using GameInput for GamePad/Keyboard/Mouse.")
-    set(CMAKE_REQUIRED_QUIET ON)
-    CHECK_INCLUDE_FILE_CXX(GameInput.h GAMEINPUT_HEADER)
-    if(NOT GAMEINPUT_HEADER)
-        message(FATAL_ERROR "Microsoft GDK required to build GameInput. See https://aka.ms/gdk")
+    find_package(gameinput CONFIG QUIET)
+    if(gameinput_FOUND)
+      target_link_libraries(${PROJECT_NAME} PUBLIC Microsoft::GameInput)
+    else()
+      set(CMAKE_REQUIRED_QUIET ON)
+      CHECK_INCLUDE_FILE_CXX(GameInput.h GAMEINPUT_HEADER)
+      if(NOT GAMEINPUT_HEADER)
+          message(FATAL_ERROR "Microsoft GDK required to build GameInput. See https://aka.ms/gdk")
+      endif()
     endif()
     target_compile_definitions(${PROJECT_NAME} PUBLIC USING_GAMEINPUT)
 elseif(BUILD_WGI)
@@ -355,6 +376,7 @@ if(BUILD_TOOLS AND WIN32)
     xwbtool/xwbtool.cpp
     xwbtool/xwbtool.rc
     xwbtool/settings.manifest
+    xwbtool/CmdLineHelpers.h
     Audio/WAVFileReader.cpp
     Audio/WAVFileReader.h)
   target_compile_features(xwbtool PRIVATE cxx_std_17)
@@ -367,6 +389,10 @@ if(directxmath_FOUND)
     foreach(t IN LISTS TOOL_EXES ITEMS ${PROJECT_NAME})
       target_link_libraries(${t} PUBLIC Microsoft::DirectXMath)
     endforeach()
+endif()
+
+if(TOOL_EXES)
+  message(STATUS "Building tools: ${TOOL_EXES}")
 endif()
 
 # Model uses dynamic_cast, so we need /GR (Enable RTTI)
@@ -383,19 +409,11 @@ if(MSVC)
     endif()
 endif()
 
-include(build/CompilerAndLinker.cmake)
-
 foreach(t IN LISTS TOOL_EXES ITEMS ${PROJECT_NAME})
   target_compile_definitions(${t} PRIVATE ${COMPILER_DEFINES})
   target_compile_options(${t} PRIVATE ${COMPILER_SWITCHES})
   target_link_options(${t} PRIVATE ${LINKER_SWITCHES})
 endforeach()
-
-if(MINGW)
-    foreach(t IN LISTS TOOL_EXES)
-      target_link_options(${t} PRIVATE -municode)
-    endforeach()
-endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|IntelLLVM")
     set(WarningsLib -Wall -Wpedantic -Wextra)
@@ -418,6 +436,7 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
     set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 14)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
     if(ENABLE_CODE_ANALYSIS)
+      message(STATUS "Building with Code Analysis (PREFIX)")
       foreach(t IN LISTS TOOL_EXES ITEMS ${PROJECT_NAME})
         target_compile_options(${t} PRIVATE /analyze /WX)
       endforeach()
@@ -432,7 +451,7 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
         endforeach()
     endif()
 
-    set(WarningsEXE "/wd4365" "/wd4514" "/wd4625" "/wd4626" "/wd4627" "/wd4710" "/wd4711" "/wd4820" "/wd5026" "/wd5027" "/wd5039" "/wd5045")
+    set(WarningsEXE "/wd4365" "/wd4514" "/wd4571" "/wd4625" "/wd4626" "/wd4627" "/wd4710" "/wd4711" "/wd4774" "/wd4820" "/wd5026" "/wd5027" "/wd5039" "/wd5045")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.34)
       list(APPEND WarningsEXE "/wd5262" "/wd5264")
       target_compile_options(${PROJECT_NAME} PRIVATE "/wd5262")
@@ -441,13 +460,16 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
       target_compile_options(${t} PRIVATE ${WarningsEXE})
     endforeach()
 
-    if(BUILD_FUZZING
-        AND (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.32)
-        AND (NOT WINDOWS_STORE))
-          foreach(t IN LISTS TOOL_EXES ITEMS ${PROJECT_NAME})
-            target_compile_options(${t} PRIVATE ${ASAN_SWITCHES})
-            target_link_libraries(${t} PRIVATE ${ASAN_LIBS})
-          endforeach()
+    if(BUILD_FUZZING AND (NOT WINDOWS_STORE))
+      string(REPLACE "/DNDEBUG" "" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
+      string(REPLACE "/DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+
+      if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.32)
+        foreach(t IN LISTS TOOL_EXES ITEMS ${PROJECT_NAME})
+          target_compile_options(${t} PRIVATE ${ASAN_SWITCHES})
+          target_link_libraries(${t} PRIVATE ${ASAN_LIBS})
+        endforeach()
+      endif()
     endif()
 endif()
 
@@ -461,15 +483,11 @@ if(WIN32)
         message(STATUS "Building for Windows 10/Windows 11.")
         set(WINVER 0x0A00)
     elseif(BUILD_XAUDIO_WIN8)
-        message(STATUS "Using DirectX Tool Kit for Audio on XAudio 2.8 (Windows 8).")
-        set(WINVER 0x0602)
-    elseif(${DIRECTX_ARCH} MATCHES "^arm")
-        message(STATUS "Building for Windows 8.")
-        set(WINVER 0x0602)
+        message(STATUS "Using DirectX Tool Kit for Audio on XAudio 2.8 (Windows 8.1).")
+        set(WINVER 0x0603)
     else()
-        message(STATUS "Building for Windows 7.")
-        set(WINVER 0x0601)
-        target_compile_definitions(${PROJECT_NAME} PRIVATE _WIN7_PLATFORM_UPDATE)
+        message(STATUS "Building for Windows 8.1")
+        set(WINVER 0x0603)
     endif()
 
     foreach(t IN LISTS TOOL_EXES ITEMS ${PROJECT_NAME})
@@ -499,6 +517,10 @@ if(WIN32 AND (NOT WINDOWS_STORE) AND (NOT (DEFINED XBOX_CONSOLE_TARGET)))
     if(BUILD_TESTING AND (EXISTS "${CMAKE_CURRENT_LIST_DIR}/Tests/CMakeLists.txt"))
         enable_testing()
         add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Tests)
+
+        if(ENABLE_CODE_COVERAGE AND (DEFINED COV_COMPILER_SWITCHES))
+          target_compile_options(${PROJECT_NAME} PRIVATE ${COV_COMPILER_SWITCHES})
+        endif()
     elseif(BUILD_FUZZING AND (EXISTS "${CMAKE_CURRENT_LIST_DIR}/Tests/fuzzloaders/CMakeLists.txt"))
         message(STATUS "Building for fuzzing")
         add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/Tests/fuzzloaders)

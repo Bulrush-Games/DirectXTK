@@ -31,6 +31,7 @@
 #endif
 
 #include <Windows.h>
+#include <dxgiformat.h>
 
 #if __cplusplus < 201703L
 #error Requires C++17 (and /Zc:__cplusplus with MSVC)
@@ -56,6 +57,11 @@
 #include <vector>
 
 #include "WAVFileReader.h"
+
+#define TOOL_VERSION 0
+#include "CmdLineHelpers.h"
+
+using namespace Helpers;
 
 #ifdef __INTEL_COMPILER
 #pragma warning(disable : 161)
@@ -112,16 +118,6 @@ static_assert(sizeof(XMA2WAVEFORMATEX) == 52, "Mismatch of XMA2 type");
 
 namespace
 {
-    struct handle_closer { void operator()(HANDLE h) { if (h) CloseHandle(h); } };
-
-    using ScopedHandle = std::unique_ptr<void, handle_closer>;
-
-    inline HANDLE safe_handle(HANDLE h) { return (h == INVALID_HANDLE_VALUE) ? nullptr : h; }
-
-    struct find_closer { void operator()(HANDLE h) { assert(h != INVALID_HANDLE_VALUE); if (h) FindClose(h); } };
-
-    using ScopedFindHandle = std::unique_ptr<void, find_closer>;
-
 #define BLOCKALIGNPAD(a, b) \
     ((((a) + ((b) - 1)) / (b)) * (b))
 
@@ -784,65 +780,54 @@ namespace
             return false;
         }
     }
-}
 
+    //////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////
 
-//////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
+    const wchar_t* g_ToolName = L"xwbtool";
+    const wchar_t* g_Description = L"Microsoft (R) XACT-style Wave Bank Tool [DirectXTK]";
 
-enum OPTIONS : uint32_t
-{
-    OPT_RECURSIVE = 1,
-    OPT_STREAMING,
-    OPT_ADVANCED_FORMAT,
-    OPT_OUTPUTFILE,
-    OPT_OUTPUTHEADER,
-    OPT_TOLOWER,
-    OPT_OVERWRITE,
-    OPT_COMPACT,
-    OPT_NOCOMPACT,
-    OPT_FRIENDLY_NAMES,
-    OPT_NOLOGO,
-    OPT_FILELIST,
-    OPT_MAX
-};
+    enum OPTIONS : uint32_t
+    {
+        OPT_RECURSIVE = 1,
+        OPT_STREAMING,
+        OPT_ADVANCED_FORMAT,
+        OPT_TOLOWER,
+        OPT_OVERWRITE,
+        OPT_COMPACT,
+        OPT_NOCOMPACT,
+        OPT_FRIENDLY_NAMES,
+        OPT_NOLOGO,
+        OPT_FLAGS_MAX,
+        OPT_OUTPUTFILE,
+        OPT_OUTPUTHEADER,
+        OPT_FILELIST,
+        OPT_VERSION,
+        OPT_HELP,
+    };
 
-static_assert(OPT_MAX <= 32, "dwOptions is a unsigned int bitfield");
+    static_assert(OPT_FLAGS_MAX <= 32, "dwOptions is a unsigned int bitfield");
 
-struct SConversion
-{
-    std::wstring szSrc;
-};
+    struct WaveFile
+    {
+        DirectX::WAVData data;
+        size_t conv;
+        MINIWAVEFORMAT miniFmt;
+        std::unique_ptr<uint8_t[]> waveData;
 
-struct SValue
-{
-    const wchar_t*  name;
-    uint32_t        value;
-};
+        WaveFile() noexcept :
+            data{},
+            conv(0),
+            miniFmt{}
+        {}
 
-struct WaveFile
-{
-    DirectX::WAVData data;
-    size_t conv;
-    MINIWAVEFORMAT miniFmt;
-    std::unique_ptr<uint8_t[]> waveData;
+        WaveFile(WaveFile&) = delete;
+        WaveFile& operator= (WaveFile&) = delete;
 
-    WaveFile() noexcept :
-        data{},
-        conv(0),
-        miniFmt{}
-    {}
+        WaveFile(WaveFile&&) = default;
+    };
 
-    WaveFile(WaveFile&) = delete;
-    WaveFile& operator= (WaveFile&) = delete;
-
-    WaveFile(WaveFile&&) = default;
-    WaveFile& operator= (WaveFile&&) = default;
-};
-
-namespace
-{
     void FileNameToIdentifier(_Inout_updates_all_(count) wchar_t* str, size_t count)
     {
         size_t j = 0;
@@ -854,300 +839,76 @@ namespace
             *c = t;
         }
     }
-}
 
-//////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////
 
-const SValue g_pOptions[] =
-{
-    { L"r",         OPT_RECURSIVE },
-    { L"s",         OPT_STREAMING },
-    { L"af",        OPT_ADVANCED_FORMAT },
-    { L"o",         OPT_OUTPUTFILE },
-    { L"l",         OPT_TOLOWER },
-    { L"h",         OPT_OUTPUTHEADER },
-    { L"y",         OPT_OVERWRITE },
-    { L"c",         OPT_COMPACT },
-    { L"nc",        OPT_NOCOMPACT },
-    { L"f",         OPT_FRIENDLY_NAMES },
-    { L"nologo",    OPT_NOLOGO },
-    { L"flist",     OPT_FILELIST },
-    { nullptr,      0 }
-};
-
-//////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
-
-namespace
-{
-#ifdef _PREFAST_
-#pragma prefast(disable : 26018, "Only used with static internal arrays")
-#endif
-
-    uint32_t LookupByName(const wchar_t *pName, const SValue *pArray)
+    const SValue<uint32_t> g_pOptions[] =
     {
-        while (pArray->name)
-        {
-            if (!_wcsicmp(pName, pArray->name))
-                return pArray->value;
+        { L"r",         OPT_RECURSIVE },
+        { L"s",         OPT_STREAMING },
+        { L"af",        OPT_ADVANCED_FORMAT },
+        { L"o",         OPT_OUTPUTFILE },
+        { L"l",         OPT_TOLOWER },
+        { L"h",         OPT_OUTPUTHEADER },
+        { L"y",         OPT_OVERWRITE },
+        { L"c",         OPT_COMPACT },
+        { L"nc",        OPT_NOCOMPACT },
+        { L"f",         OPT_FRIENDLY_NAMES },
+        { L"nologo",    OPT_NOLOGO },
+        { L"flist",     OPT_FILELIST },
+        { nullptr,      0 }
+    };
 
-            pArray++;
-        }
-
-        return 0;
-    }
-
-    void SearchForFiles(const std::filesystem::path& path, std::list<SConversion>& files, bool recursive)
+    const SValue<uint32_t> g_pOptionsLong[] =
     {
-        // Process files
-        WIN32_FIND_DATAW findData = {};
-        ScopedFindHandle hFile(safe_handle(FindFirstFileExW(path.c_str(),
-            FindExInfoBasic, &findData,
-            FindExSearchNameMatch, nullptr,
-            FIND_FIRST_EX_LARGE_FETCH)));
-        if (hFile)
-        {
-            for (;;)
-            {
-                if (!(findData.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_DIRECTORY)))
-                {
-                    SConversion conv = {};
-                    conv.szSrc = path.parent_path().append(findData.cFileName).native();
-                    files.push_back(conv);
-                }
+        { L"advanced-format",   OPT_ADVANCED_FORMAT },
+        { L"compact",           OPT_COMPACT },
+        { L"file-list",         OPT_FILELIST },
+        { L"friendly-names",    OPT_FRIENDLY_NAMES },
+        { L"help",              OPT_HELP },
+        { L"no-compact",        OPT_NOCOMPACT },
+        { L"overwrite",         OPT_OVERWRITE },
+        { L"streaming",         OPT_STREAMING },
+        { L"to-lowercase",      OPT_TOLOWER },
+        { L"version",           OPT_VERSION },
+        { nullptr,              0 }
+    };
 
-                if (!FindNextFileW(hFile.get(), &findData))
-                    break;
-            }
-        }
-
-        // Process directories
-        if (recursive)
-        {
-            auto searchDir = path.parent_path().append(L"*");
-
-            hFile.reset(safe_handle(FindFirstFileExW(searchDir.c_str(),
-                FindExInfoBasic, &findData,
-                FindExSearchLimitToDirectories, nullptr,
-                FIND_FIRST_EX_LARGE_FETCH)));
-            if (!hFile)
-                return;
-
-            for (;;)
-            {
-                if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                {
-                    if (findData.cFileName[0] != L'.')
-                    {
-                        auto subdir = path.parent_path().append(findData.cFileName).append(path.filename().c_str());
-
-                        SearchForFiles(subdir, files, recursive);
-                    }
-                }
-
-                if (!FindNextFileW(hFile.get(), &findData))
-                    break;
-            }
-        }
-    }
-
-    void ProcessFileList(std::wifstream& inFile, std::list<SConversion>& files)
-    {
-        std::list<SConversion> flist;
-        std::set<std::wstring> excludes;
-
-        for (;;)
-        {
-            std::wstring fname;
-            std::getline(inFile, fname);
-            if (!inFile)
-                break;
-
-            if (fname[0] == L'#')
-            {
-                // Comment
-            }
-            else if (fname[0] == L'-')
-            {
-                if (flist.empty())
-                {
-                    wprintf(L"WARNING: Ignoring the line '%ls' in -flist\n", fname.c_str());
-                }
-                else
-                {
-                    std::filesystem::path path(fname.c_str() + 1);
-                    auto& npath = path.make_preferred();
-                    if (wcspbrk(fname.c_str(), L"?*") != nullptr)
-                    {
-                        std::list<SConversion> removeFiles;
-                        SearchForFiles(npath, removeFiles, false);
-
-                        for (auto& it : removeFiles)
-                        {
-                            std::wstring name = it.szSrc;
-                            std::transform(name.begin(), name.end(), name.begin(), towlower);
-                            excludes.insert(name);
-                        }
-                    }
-                    else
-                    {
-                        std::wstring name = npath.c_str();
-                        std::transform(name.begin(), name.end(), name.begin(), towlower);
-                        excludes.insert(name);
-                    }
-                }
-            }
-            else if (wcspbrk(fname.c_str(), L"?*") != nullptr)
-            {
-                std::filesystem::path path(fname.c_str());
-                SearchForFiles(path.make_preferred(), flist, false);
-            }
-            else
-            {
-                SConversion conv = {};
-                std::filesystem::path path(fname.c_str());
-                conv.szSrc = path.make_preferred().native();
-                flist.push_back(conv);
-            }
-        }
-
-        inFile.close();
-
-        if (!excludes.empty())
-        {
-            // Remove any excluded files
-            for (auto it = flist.begin(); it != flist.end();)
-            {
-                std::wstring name = it->szSrc;
-                std::transform(name.begin(), name.end(), name.begin(), towlower);
-                auto item = it;
-                ++it;
-                if (excludes.find(name) != excludes.end())
-                {
-                    flist.erase(item);
-                }
-            }
-        }
-
-        if (flist.empty())
-        {
-            wprintf(L"WARNING: No file names found in -flist\n");
-        }
-        else
-        {
-            files.splice(files.end(), flist);
-        }
-    }
-
-    void PrintLogo(bool versionOnly)
-    {
-        wchar_t version[32] = {};
-
-        wchar_t appName[_MAX_PATH] = {};
-        if (GetModuleFileNameW(nullptr, appName, _MAX_PATH))
-        {
-            DWORD size = GetFileVersionInfoSizeW(appName, nullptr);
-            if (size > 0)
-            {
-                auto verInfo = std::make_unique<uint8_t[]>(size);
-                if (GetFileVersionInfoW(appName, 0, size, verInfo.get()))
-                {
-                    LPVOID lpstr = nullptr;
-                    UINT strLen = 0;
-                    if (VerQueryValueW(verInfo.get(), L"\\StringFileInfo\\040904B0\\ProductVersion", &lpstr, &strLen))
-                    {
-                        wcsncpy_s(version, reinterpret_cast<const wchar_t*>(lpstr), strLen);
-                    }
-                }
-            }
-        }
-
-        if (!*version)
-        {
-            wcscpy_s(version, L"MISSING");
-        }
-
-        if (versionOnly)
-        {
-            wprintf(L"xwbtool version %ls\n", version);
-        }
-        else
-        {
-            wprintf(L"Microsoft (R) XACT-style Wave Bank Tool [DirectXTK] Version %ls\n", version);
-            wprintf(L"Copyright (C) Microsoft Corp.\n");
-        #ifdef _DEBUG
-            wprintf(L"*** Debug build ***\n");
-        #endif
-            wprintf(L"\n");
-        }
-    }
+    //////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////
 
     void PrintUsage()
     {
-        PrintLogo(false);
+        PrintLogo(false, g_ToolName, g_Description);
 
         static const wchar_t* const s_usage =
             L"Usage: xwbtool <options> [--] <wav-files>\n"
             L"\n"
             L"   -r                  wildcard filename search is recursive\n"
-            L"   -s                  creates a streaming wave bank,\n"
-            L"                       otherwise an in-memory bank is created\n"
-            L"   -af                 for streaming, use 4K instead of 2K alignment\n"
-            L"                       (required for advanced format drives without 512e)\n"
-            L"   -o <filename>       output filename\n"
-            L"   -h <h-filename>     output C/C++ header\n"
-            L"   -l                  force output filename to lower case\n"
-            L"   -y                  overwrite existing output file (if any)\n"
-            L"   -c                  force creation of compact wavebank\n"
-            L"   -nc                 force creation of non-compact wavebank\n"
-            L"   -f                  include entry friendly names\n"
-            L"   -nologo             suppress copyright message\n"
-            L"   -flist <filename>   use text file with a list of input files (one per line)\n"
+            L"   -flist <filename>, --file-list <filename>\n"
+            L"                       use text file with a list of input files (one per line)\n"
+            L"\n"
+            L"   -s, --streaming          creates a streaming wave bank,\n"
+            L"                            otherwise an in-memory bank is created\n"
+            L"   -af, --advanced-format   for streaming, use 4K instead of 2K alignment\n"
+            L"                            (required for advanced format drives without 512e)\n"
+            L"\n"
+            L"   -o <filename>            output filename\n"
+            L"   -h <h-filename>          output C/C++ header\n"
+            L"   -l, --to-lowercase       force output filename to lower case\n"
+            L"   -y, --overwrite          overwrite existing output file (if any)\n"
+            L"\n"
+            L"   -c, --compact            force creation of compact wavebank\n"
+            L"   -nc, --no-compact        force creation of non-compact wavebank\n"
+            L"   -f, --friendly-names     include entry friendly names\n"
+            L"   -nologo                  suppress copyright message\n"
             L"\n"
             L"   '-- ' is needed if any input filepath starts with the '-' or '/' character\n";
 
         wprintf(L"%ls", s_usage);
-    }
-
-    const wchar_t* GetErrorDesc(HRESULT hr)
-    {
-        static wchar_t desc[1024] = {};
-
-        LPWSTR errorText = nullptr;
-
-        DWORD result = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_ALLOCATE_BUFFER,
-            nullptr, static_cast<DWORD>(hr),
-            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPWSTR>(&errorText), 0, nullptr);
-
-        *desc = 0;
-
-        if (result > 0 && errorText)
-        {
-            swprintf_s(desc, L": %ls", errorText);
-
-            size_t len = wcslen(desc);
-            if (len >= 2)
-            {
-                desc[len - 2] = 0;
-                desc[len - 1] = 0;
-            }
-
-            if (errorText)
-                LocalFree(errorText);
-
-            for (wchar_t* ptr = desc; *ptr != 0; ++ptr)
-            {
-                if (*ptr == L'\r' || *ptr == L'\n')
-                {
-                    *ptr = L' ';
-                }
-            }
-        }
-
-        return desc;
     }
 
     const char* GetFormatTagName(WORD wFormatTag)
@@ -1232,50 +993,82 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
     {
         PWSTR pArg = argv[iArg];
 
-        if (allowOpts
-            && ('-' == pArg[0]) && ('-' == pArg[1]))
+        if (allowOpts && (('-' == pArg[0]) || ('/' == pArg[0])))
         {
-            if (pArg[2] == 0)
+            uint32_t dwOption = 0;
+            PWSTR pValue = nullptr;
+
+            if (('-' == pArg[0]) && ('-' == pArg[1]))
             {
-                // "-- " is the POSIX standard for "end of options" marking to escape the '-' and '/' characters at the start of filepaths.
-                allowOpts = false;
-            }
-            else if (!_wcsicmp(pArg, L"--version"))
-            {
-                PrintLogo(true);
-                return 0;
-            }
-            else if (!_wcsicmp(pArg, L"--help"))
-            {
-                PrintUsage();
-                return 0;
+                if (pArg[2] == 0)
+                {
+                    // "-- " is the POSIX standard for "end of options" marking to escape the '-' and '/' characters at the start of filepaths.
+                    allowOpts = false;
+                    continue;
+                }
+                else
+                {
+                    pArg += 2;
+
+                    for (pValue = pArg; *pValue && (':' != *pValue) && ('=' != *pValue); ++pValue);
+
+                    if (*pValue)
+                        *pValue++ = 0;
+
+                    dwOption = LookupByName(pArg, g_pOptionsLong);
+                }
             }
             else
             {
-                wprintf(L"Unknown option: %ls\n", pArg);
-                return 1;
+                pArg++;
+
+                for (pValue = pArg; *pValue && (':' != *pValue) && ('=' != *pValue); ++pValue);
+
+                if (*pValue)
+                    *pValue++ = 0;
+
+                dwOption = LookupByName(pArg, g_pOptions);
+
+                if (!dwOption)
+                {
+                    if (LookupByName(pArg, g_pOptionsLong))
+                    {
+                        wprintf(L"ERROR: did you mean `--%ls` (with two dashes)?\n", pArg);
+                        return 1;
+                    }
+                }
             }
-        }
-        else if (allowOpts
-            && (('-' == pArg[0]) || ('/' == pArg[0])))
-        {
-            pArg++;
-            PWSTR pValue;
 
-            for (pValue = pArg; *pValue && (':' != *pValue); pValue++);
-
-            if (*pValue)
-                *pValue++ = 0;
-
-            uint32_t dwOption = LookupByName(pArg, g_pOptions);
-
-            if (!dwOption || (dwOptions & (1 << dwOption)))
+            switch (dwOption)
             {
-                PrintUsage();
+            case 0:
+                wprintf(L"ERROR: Unknown option: `%ls`\n\nUse %ls --help\n", pArg, g_ToolName);
                 return 1;
-            }
 
-            dwOptions |= 1 << dwOption;
+            case OPT_FILELIST:
+            case OPT_OUTPUTHEADER:
+            case OPT_OUTPUTFILE:
+                // These don't use flag bits
+                break;
+
+            case OPT_VERSION:
+                PrintLogo(true, g_ToolName, g_Description);
+                return 0;
+
+            case OPT_HELP:
+                PrintUsage();
+                return 0;
+
+            default:
+                if (dwOptions & (UINT32_C(1) << dwOption))
+                {
+                    wprintf(L"ERROR: Duplicate option: `%ls`\n\n", pArg);
+                    return 1;
+                }
+
+                dwOptions |= (UINT32_C(1) << dwOption);
+                break;
+            }
 
             // Handle options with additional value parameter
             switch (dwOption)
@@ -1315,21 +1108,21 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
 
             case OPT_ADVANCED_FORMAT:
                 // Must disable compact version to support 4K
-                if (dwOptions & (1 << OPT_COMPACT))
+                if (dwOptions & (UINT32_C(1) << OPT_COMPACT))
                 {
                     wprintf(L"-c and -af are mutually exclusive options\n");
                     return 1;
                 }
-                dwOptions |= (1 << OPT_NOCOMPACT);
+                dwOptions |= (UINT32_C(1) << OPT_NOCOMPACT);
                 break;
 
             case OPT_COMPACT:
-                if (dwOptions & (1 << OPT_ADVANCED_FORMAT))
+                if (dwOptions & (UINT32_C(1) << OPT_ADVANCED_FORMAT))
                 {
                     wprintf(L"-c and -af are mutually exclusive options\n");
                     return 1;
                 }
-                if (dwOptions & (1 << OPT_NOCOMPACT))
+                if (dwOptions & (UINT32_C(1) << OPT_NOCOMPACT))
                 {
                     wprintf(L"-c and -nc are mutually exclusive options\n");
                     return 1;
@@ -1337,7 +1130,7 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
                 break;
 
             case OPT_NOCOMPACT:
-                if (dwOptions & (1 << OPT_COMPACT))
+                if (dwOptions & (UINT32_C(1) << OPT_COMPACT))
                 {
                     wprintf(L"-c and -nc are mutually exclusive options\n");
                     return 1;
@@ -1365,7 +1158,7 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
         {
             size_t count = conversion.size();
             std::filesystem::path path(pArg);
-            SearchForFiles(path.make_preferred(), conversion, (dwOptions & (1 << OPT_RECURSIVE)) != 0);
+            SearchForFiles(path.make_preferred(), conversion, (dwOptions & (UINT32_C(1) << OPT_RECURSIVE)) != 0, nullptr);
             if (conversion.size() <= count)
             {
                 wprintf(L"No matching files found for %ls\n", pArg);
@@ -1388,8 +1181,8 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
         return 0;
     }
 
-    if (~dwOptions & (1 << OPT_NOLOGO))
-        PrintLogo(false);
+    if (~dwOptions & (UINT32_C(1) << OPT_NOLOGO))
+        PrintLogo(false, g_ToolName, g_Description);
 
     // Determine output file name
     if (outputFile.empty())
@@ -1405,7 +1198,7 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
         outputFile = curpath.stem().concat(L".xwb").native();
     }
 
-    if (dwOptions & (1 << OPT_TOLOWER))
+    if (dwOptions & (UINT32_C(1) << OPT_TOLOWER))
     {
         std::transform(outputFile.begin(), outputFile.end(), outputFile.begin(), towlower);
 
@@ -1415,7 +1208,7 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
         }
     }
 
-    if (~dwOptions & (1 << OPT_OVERWRITE))
+    if (~dwOptions & (UINT32_C(1) << OPT_OVERWRITE))
     {
         if (GetFileAttributesW(outputFile.c_str()) != INVALID_FILE_ATTRIBUTES)
         {
@@ -1477,9 +1270,9 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
     wprintf(L"\n");
 
     DWORD dwAlignment = ALIGNMENT_MIN;
-    if (dwOptions & (1 << OPT_STREAMING))
+    if (dwOptions & (UINT32_C(1) << OPT_STREAMING))
     {
-        dwAlignment = (dwOptions & (1 << OPT_ADVANCED_FORMAT)) ? ALIGNMENT_ADVANCED_FORMAT : ALIGNMENT_DVD;
+        dwAlignment = (dwOptions & (UINT32_C(1) << OPT_ADVANCED_FORMAT)) ? ALIGNMENT_ADVANCED_FORMAT : ALIGNMENT_DVD;
     }
     else if (xma)
     {
@@ -1489,7 +1282,7 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
 
     // Convert wave format to miniformat, failing if any won't map
     // Check to see if we can use the compact wave bank format
-    bool compact = (dwOptions & (1 << OPT_NOCOMPACT)) ? false : true;
+    bool compact = (dwOptions & (UINT32_C(1) << OPT_NOCOMPACT)) ? false : true;
     int reason = 0;
     uint64_t waveOffset = 0;
 
@@ -1534,7 +1327,7 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
         reason |= 0x4;
     }
 
-    if ((dwOptions & (1 << OPT_COMPACT)) && !compact)
+    if ((dwOptions & (UINT32_C(1) << OPT_COMPACT)) && !compact)
     {
         wprintf(L"ERROR: Cannot create compact wave bank:\n");
         if (reason & 0x1)
@@ -1556,7 +1349,7 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
     // Build entry friendly names if requested
     entries.reset(new uint8_t[(compact ? sizeof(ENTRYCOMPACT) : sizeof(ENTRY)) * waves.size()]);
 
-    if (dwOptions & (1 << OPT_FRIENDLY_NAMES))
+    if (dwOptions & (UINT32_C(1) << OPT_FRIENDLY_NAMES))
     {
         entryNames.reset(new char[waves.size() * ENTRYNAME_LENGTH]);
         memset(entryNames.get(), 0, sizeof(char) * waves.size() * ENTRYNAME_LENGTH);
@@ -1642,7 +1435,7 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
             }
         }
 
-        if (dwOptions & (1 << OPT_FRIENDLY_NAMES))
+        if (dwOptions & (UINT32_C(1) << OPT_FRIENDLY_NAMES))
         {
             auto cit = conversion.cbegin();
             advance(cit, it->conv);
@@ -1667,7 +1460,7 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
     // Create wave bank
     assert(!outputFile.empty());
 
-    wprintf(L"writing %ls%ls wavebank %ls w/ %zu entries\n", (compact) ? L"compact " : L"", (dwOptions & (1 << OPT_STREAMING)) ? L"streaming" : L"in-memory", outputFile.c_str(), waves.size());
+    wprintf(L"writing %ls%ls wavebank %ls w/ %zu entries\n", (compact) ? L"compact " : L"", (dwOptions & (UINT32_C(1) << OPT_STREAMING)) ? L"streaming" : L"in-memory", outputFile.c_str(), waves.size());
     fflush(stdout);
 
     ScopedHandle hFile(safe_handle(CreateFileW(
@@ -1700,14 +1493,14 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
 
     GetSystemTimeAsFileTime(&data.BuildTime);
 
-    data.dwFlags = (dwOptions & (1 << OPT_STREAMING)) ? BANKDATA::TYPE_STREAMING : BANKDATA::TYPE_BUFFER;
+    data.dwFlags = (dwOptions & (UINT32_C(1) << OPT_STREAMING)) ? BANKDATA::TYPE_STREAMING : BANKDATA::TYPE_BUFFER;
 
     if (seekEntries > 0)
     {
         data.dwFlags |= BANKDATA::FLAGS_SEEKTABLES;
     }
 
-    if (dwOptions & (1 << OPT_FRIENDLY_NAMES))
+    if (dwOptions & (UINT32_C(1) << OPT_FRIENDLY_NAMES))
     {
         data.dwFlags |= BANKDATA::FLAGS_ENTRYNAMES;
         data.dwEntryNameElementSize = ENTRYNAME_LENGTH;
@@ -1850,7 +1643,7 @@ int __cdecl wmain(_In_ int argc, _In_z_count_(argc) wchar_t* argv[])
     }
 
     // Write entry names
-    if (dwOptions & (1 << OPT_FRIENDLY_NAMES))
+    if (dwOptions & (UINT32_C(1) << OPT_FRIENDLY_NAMES))
     {
         assert((segmentOffset % 4) == 0);
 

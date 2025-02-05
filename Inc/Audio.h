@@ -36,10 +36,8 @@
 
 #if defined(USING_XAUDIO2_REDIST) || (_WIN32_WINNT >= 0x0A00 /*_WIN32_WINNT_WIN10*/) || defined(_XBOX_ONE)
 #define USING_XAUDIO2_9
-#elif (_WIN32_WINNT >= 0x0602 /*_WIN32_WINNT_WIN8*/)
+#elif (_WIN32_WINNT >= 0x0603 /*_WIN32_WINNT_WINBLUE*/)
 #define USING_XAUDIO2_8
-#elif (_WIN32_WINNT >= 0x0601 /*_WIN32_WINNT_WIN7*/)
-#error Windows 7 SP1 requires the XAudio2Redist NuGet package https://aka.ms/xaudio2redist
 #else
 #error DirectX Tool Kit for Audio not supported on this platform
 #endif
@@ -159,7 +157,7 @@ namespace DirectX
         SoundEffectInstance_UseRedirectLFE = 0x10000,
     };
 
-    enum AUDIO_ENGINE_REVERB : unsigned int
+    enum AUDIO_ENGINE_REVERB : uint32_t
     {
         Reverb_Off,
         Reverb_Default,
@@ -195,7 +193,7 @@ namespace DirectX
         Reverb_MAX
     };
 
-    enum SoundState
+    enum SoundState : uint32_t
     {
         STOPPED = 0,
         PLAYING,
@@ -547,6 +545,8 @@ namespace DirectX
         }
 
         void __cdecl SetCone(const X3DAUDIO_CONE& listenerCone);
+
+        bool __cdecl IsValid() const;
     };
 
 
@@ -666,6 +666,8 @@ namespace DirectX
             pLPFReverbCurve = nullptr;
             pReverbCurve = nullptr;
         }
+
+        bool __cdecl IsValid() const;
     };
 
 
@@ -819,8 +821,8 @@ namespace DirectX
 #pragma clang diagnostic ignored "-Wdeprecated-dynamic-exception-spec"
 #endif
 
-    DEFINE_ENUM_FLAG_OPERATORS(AUDIO_ENGINE_FLAGS);
-    DEFINE_ENUM_FLAG_OPERATORS(SOUND_EFFECT_INSTANCE_FLAGS);
+    DEFINE_ENUM_FLAG_OPERATORS(AUDIO_ENGINE_FLAGS)
+    DEFINE_ENUM_FLAG_OPERATORS(SOUND_EFFECT_INSTANCE_FLAGS)
 
 #ifdef __clang__
 #pragma clang diagnostic pop

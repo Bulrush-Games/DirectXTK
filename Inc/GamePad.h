@@ -43,11 +43,7 @@
 
 #elif defined(USING_XINPUT)
 #ifdef _MSC_VER
-#if (_WIN32_WINNT >= 0x0602 /*_WIN32_WINNT_WIN8*/ )
 #pragma comment(lib,"xinput.lib")
-#else
-#pragma comment(lib,"xinput9_1_0.lib")
-#endif
 #endif
 #endif
 
@@ -87,7 +83,7 @@ namespace DirectX
         static constexpr int c_MergedInput = -2;
     #endif
 
-        enum DeadZone
+        enum DeadZone : uint32_t
         {
             DEAD_ZONE_INDEPENDENT_AXES = 0,
             DEAD_ZONE_CIRCULAR,
@@ -187,7 +183,7 @@ namespace DirectX
 
         struct Capabilities
         {
-            enum Type
+            enum Type : uint32_t
             {
                 UNKNOWN = 0,
                 GAMEPAD,
@@ -222,7 +218,7 @@ namespace DirectX
         class ButtonStateTracker
         {
         public:
-            enum ButtonState
+            enum ButtonState : uint32_t
             {
                 UP = 0,         // Button is up
                 HELD = 1,       // Button is held down

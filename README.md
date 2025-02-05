@@ -6,7 +6,7 @@ http://go.microsoft.com/fwlink/?LinkId=248929
 
 Copyright (c) Microsoft Corporation.
 
-**June 4, 2024**
+**October 28, 2024**
 
 This package contains the "DirectX Tool Kit", a collection of helper classes for writing Direct3D 11 C++ code for Universal Windows Platform (UWP) apps for Windows 11, Windows 10, Xbox One, and Win32 desktop applications for Windows 7 Service Pack 1 or later.
 
@@ -78,6 +78,14 @@ FOR SECURITY ADVISORIES, see [GitHub](https://github.com/microsoft/DirectXTK/sec
 
 For a full change history, see [CHANGELOG.md](https://github.com/microsoft/DirectXTK/blob/main/CHANGELOG.md).
 
+* Starting with the December 2024 release, Windows 7 and Windows 8.0 support has been retired. For *DirectX ToolKit for Audio* this means that `DirectXTKAudio_Desktop_*_Win7` has been removed, and `DirectXTKAudio_Desktop_*_Win8` has been integrated into the `DirectXTK_Desktop_*` vcxproj which uses XAudio 2.8 for Windows 8.1 compatibility.
+
+  * Remove any References to or use of `DirectXTKAudio_Desktop_*_Win8.vcxproj` or `DirectXTKAudio_Desktop_*_Win7`. If using `DirectXTK_Desktop_*.vcxproj` you will be using XAudio 2.8 as before. Client code will need to build with `_WIN32_WINNT=0x0603`.
+
+  * With the `directxtk_desktop_2019` NuGet package, you will be using XAudio 2.8 and no longer use the XAudio2Redist NuGet package. Client code will build with `_WIN32_WINNT=0x0603`.
+
+  * If you want to use XAudio2Redist with Windows 8.1, the CMake project supports this with the build option `BUILD_XAUDIO_REDIST`. The CMake build option `BUILD_XAUDIO_WIN7` was renamed.
+
 * Starting with the February 2023 release, the Mouse class implementation of relative mouse movement was updated to accumulate changes between calls to ``GetState``. By default, each time you call ``GetState`` the deltas are reset which works for scenarios where you use relative movement but only call the method once per frame. If you call it more than once per frame, then add an explicit call to ``EndOfInputFrame`` to use an explicit reset model instead.
 
 * As of the September 2022 release, the library makes use of C++11 inline namespaces for differing types that have the same names in the DirectX 11 and DirectX 12 version of the *DirectX Tool Kit*. This provides a link-unique name such as ``DirectX::DX11::SpriteBatch`` that will appear in linker output messages. In most use cases, however, there is no need to add explicit ``DX11`` namespace resolution in client code.
@@ -94,11 +102,15 @@ For a full change history, see [CHANGELOG.md](https://github.com/microsoft/Direc
 
 * The UWP projects and the Win10 classic desktop project include configurations for the ARM64 platform. Building these requires installing the ARM64 toolset.
 
-* When using clang/LLVM for the ARM64 platform, the Windows 11 SDK ([22000](https://walbourn.github.io/windows-sdk-for-windows-11/)) or later is required.
+* For ARM64/AArch64 development, the VS 2022 compiler is strongly recommended over the VS 2019 toolset. The Windows SDK (26100 or later) is not compatible with VS 2019 for Win32 on ARM64 development. *Note that the ARM32/AArch32 platform is [deprecated](https://learn.microsoft.com/windows/arm/arm32-to-arm64)*.
+
+* When using clang/LLVM for the ARM64/AArch64 platform, the Windows 11 SDK ([22000](https://walbourn.github.io/windows-sdk-for-windows-11/)) or later is required.
 
 * The ``CompileShaders.cmd`` script must have Windows-style (CRLF) line-endings. If it is changed to Linux-style (LF) line-endings, it can fail to build all the required shaders.
 
 * Xbox One support for DirectX 11 requires the legacy Xbox One XDK. See February 2023 or earlier releases of *DirectX Tool Kit* for the required project files.
+
+* As of the October 2024 release, the xwbtool command-line tool also supports GNU-style long options using ``--``. All existing switches continue to function. MakeSpriteFont supports only `--version` and ``--help`` for POSIX-style parameters.
 
 ## Support
 

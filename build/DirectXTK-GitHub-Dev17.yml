@@ -12,42 +12,16 @@ schedules:
     include:
     - main
 
-trigger:
-  branches:
-    include:
-    - main
-  paths:
-    exclude:
-    - '*.md'
-    - LICENSE
-    - CMake*
-    - '.nuget/*'
-    - build/*.cmake
-    - build/*.cmd
-    - build/*.in
-    - build/*.json
-    - build/*.props
-    - build/*.ps1
-    - build/*.targets
-
+# GitHub Actions handles MSBuild for CI/PR
+trigger: none
 pr:
   branches:
     include:
     - main
   paths:
-    exclude:
-    - '*.md'
-    - LICENSE
-    - CMake*
-    - '.nuget/*'
-    - build/*.cmake
-    - build/*.cmd
-    - build/*.in
-    - build/*.json
-    - build/*.props
-    - build/*.ps1
-    - build/*.targets
-  drafts: false
+    include:
+    - build/DirectXTK-GitHub-Dev17.yml
+    - Src/Shaders/CompileShaders.cmd
 
 resources:
   repositories:
@@ -73,14 +47,6 @@ jobs:
   - checkout: self
     clean: true
     fetchTags: false
-  - task: NuGetToolInstaller@1
-    displayName: 'Use NuGet'
-  - task: NuGetCommand@2
-    displayName: NuGet restore
-    inputs:
-      solution: DirectXTK_Desktop_2022_Win7.sln
-      feedRestore: $(GUID_FEED)
-      includeNuGetOrg: false
   - task: VSBuild@1
     displayName: Build solution DirectXTK_Desktop_2022.sln 32dbg
     inputs:
@@ -109,38 +75,6 @@ jobs:
     displayName: Build solution DirectXTK_Desktop_2022.sln 64rel
     inputs:
       solution: DirectXTK_Desktop_2022.sln
-      msbuildArgs: /p:PreferredToolArchitecture=x64
-      platform: x64
-      configuration: Release
-      msbuildArchitecture: x64
-  - task: VSBuild@1
-    displayName: Build solution DirectXTK_Desktop_2022_Win7.sln 32dbg
-    inputs:
-      solution: DirectXTK_Desktop_2022_Win7.sln
-      msbuildArgs: /p:PreferredToolArchitecture=x64
-      platform: x86
-      configuration: Debug
-      msbuildArchitecture: x64
-  - task: VSBuild@1
-    displayName: Build solution DirectXTK_Desktop_2022_Win7.sln 32rel
-    inputs:
-      solution: DirectXTK_Desktop_2022_Win7.sln
-      msbuildArgs: /p:PreferredToolArchitecture=x64
-      platform: x86
-      configuration: Release
-      msbuildArchitecture: x64
-  - task: VSBuild@1
-    displayName: Build solution DirectXTK_Desktop_2022_Win7.sln 64dbg
-    inputs:
-      solution: DirectXTK_Desktop_2022_Win7.sln
-      msbuildArgs: /p:PreferredToolArchitecture=x64
-      platform: x64
-      configuration: Debug
-      msbuildArchitecture: x64
-  - task: VSBuild@1
-    displayName: Build solution DirectXTK_Desktop_2022_Win7.sln 64rel
-    inputs:
-      solution: DirectXTK_Desktop_2022_Win7.sln
       msbuildArgs: /p:PreferredToolArchitecture=x64
       platform: x64
       configuration: Release

@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 #
-# http://go.microsoft.com/fwlink/?LinkId=248929
+# https://go.microsoft.com/fwlink/?LinkId=248929
 
 # Builds the library and test suite.
 
@@ -12,8 +12,8 @@ schedules:
     include:
     - main
 
+# GitHub Actions handles test suite for CI/PR
 trigger: none
-
 pr:
   branches:
     include:
@@ -28,6 +28,11 @@ resources:
     type: git
     ref: refs/heads/main
     trigger: none
+  - repository: testRepo
+    name: walbourn/directxtktest
+    type: github
+    endpoint: microsoft
+    ref: refs/heads/main
 
 name: $(Year:yyyy).$(Month).$(DayOfMonth)$(Rev:.r)
 
@@ -37,7 +42,6 @@ pool:
 variables:
   Codeql.Enabled: false
   VC_PATH: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC'
-  GITHUB_PAT: $(GITHUBPUBLICTOKEN)
   GUID_FEED: $(ADOFeedGUID)
 
 jobs:
@@ -51,19 +55,14 @@ jobs:
   - checkout: self
     clean: true
     fetchTags: false
-  - task: DeleteFiles@1
-    displayName: Delete files from Tests
-    inputs:
-      SourceFolder: Tests
-      Contents: '**'
-      RemoveSourceFolder: true
-      RemoveDotFiles: true
-  - task: CmdLine@2
+    fetchDepth: 1
+    path: 's'
+  - checkout: testRepo
     displayName: Fetch Tests
-    inputs:
-      script: git clone --quiet --no-tags https://%GITHUB_PAT%@github.com/walbourn/directxtktest.git Tests
-      workingDirectory: $(Build.SourcesDirectory)
-      failOnStderr: true
+    clean: true
+    fetchTags: false
+    fetchDepth: 1
+    path: 's/Tests'
   - task: VSBuild@1
     displayName: Build solution DirectXTK_Tests_Desktop_2022.sln 32dbg
     inputs:
@@ -161,79 +160,6 @@ jobs:
       configuration: Release
       msbuildArchitecture: x64
 
-- job: DESKTOP_BUILD_WIN7
-  displayName: 'Win32 Desktop for Windows 7'
-  timeoutInMinutes: 60
-  workspace:
-    clean: all
-  steps:
-  - checkout: self
-    clean: true
-    fetchTags: false
-  - task: DeleteFiles@1
-    displayName: Delete files from Tests
-    inputs:
-      SourceFolder: Tests
-      Contents: '**'
-      RemoveSourceFolder: true
-      RemoveDotFiles: true
-  - task: CmdLine@2
-    displayName: Fetch Tests
-    inputs:
-      script: git clone --quiet --no-tags https://%GITHUB_PAT%@github.com/walbourn/directxtktest.git Tests
-      workingDirectory: $(Build.SourcesDirectory)
-      failOnStderr: true
-  - task: NuGetToolInstaller@1
-    displayName: 'Use NuGet'
-  - task: NuGetCommand@2
-    displayName: NuGet restore
-    inputs:
-      solution: DirectXTK_Desktop_2019_Win7.sln
-      feedRestore: $(GUID_FEED)
-      includeNuGetOrg: false
-  - task: NuGetCommand@2
-    displayName: NuGet restore tests
-    inputs:
-      solution: Tests\DirectXTK_Tests_Desktop_2019_Win7.sln
-      feedRestore: $(GUID_FEED)
-      includeNuGetOrg: false
-  - task: VSBuild@1
-    displayName: Build solution DirectXTK_Tests_Desktop_2022_Win7.sln 32dbg
-    inputs:
-      solution: Tests/DirectXTK_Tests_Desktop_2022_Win7.sln
-      vsVersion: 17.0
-      msbuildArgs: /p:PreferredToolArchitecture=x64
-      platform: x86
-      configuration: Debug
-      msbuildArchitecture: x64
-  - task: VSBuild@1
-    displayName: Build solution DirectXTK_Tests_Desktop_2022_Win7.sln 32rel
-    inputs:
-      solution: Tests/DirectXTK_Tests_Desktop_2022_Win7.sln
-      vsVersion: 17.0
-      msbuildArgs: /p:PreferredToolArchitecture=x64
-      platform: x86
-      configuration: Release
-      msbuildArchitecture: x64
-  - task: VSBuild@1
-    displayName: Build solution DirectXTK_Tests_Desktop_2022_Win7.sln 64rel
-    inputs:
-      solution: Tests/DirectXTK_Tests_Desktop_2022_Win7.sln
-      vsVersion: 17.0
-      msbuildArgs: /p:PreferredToolArchitecture=x64
-      platform: x64
-      configuration: Release
-      msbuildArchitecture: x64
-  - task: VSBuild@1
-    displayName: Build solution DirectXTK_Tests_Desktop_2022_Win7.sln 64dbg
-    inputs:
-      solution: Tests/DirectXTK_Tests_Desktop_2022_Win7.sln
-      vsVersion: 17.0
-      msbuildArgs: /p:PreferredToolArchitecture=x64
-      platform: x64
-      configuration: Debug
-      msbuildArchitecture: x64
-
 - job: CMAKE_BUILD_X64
   displayName: 'CMake for X64 BUILD_TESTING=ON'
   timeoutInMinutes: 60
@@ -243,19 +169,14 @@ jobs:
   - checkout: self
     clean: true
     fetchTags: false
-  - task: DeleteFiles@1
-    displayName: Delete files from Tests
-    inputs:
-      SourceFolder: Tests
-      Contents: '**'
-      RemoveSourceFolder: true
-      RemoveDotFiles: true
-  - task: CmdLine@2
+    fetchDepth: 1
+    path: 's'
+  - checkout: testRepo
     displayName: Fetch Tests
-    inputs:
-      script: git clone --quiet --no-tags https://%GITHUB_PAT%@github.com/walbourn/directxtktest.git Tests
-      workingDirectory: $(Build.SourcesDirectory)
-      failOnStderr: true
+    clean: true
+    fetchTags: false
+    fetchDepth: 1
+    path: 's/Tests'
   - task: CmdLine@2
     displayName: Setup environment for CMake to use VS
     inputs:
@@ -274,12 +195,12 @@ jobs:
   - task: CMake@1
     displayName: CMake (MSVC; x64-Debug) Config
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
+      cwd: $(Build.SourcesDirectory)
       cmakeArgs: --preset=x64-Debug
   - task: CMake@1
     displayName: CMake (MSVC; x64-Debug) Build
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
+      cwd: $(Build.SourcesDirectory)
       cmakeArgs: --build out/build/x64-Debug -v
   - task: DeleteFiles@1
     inputs:
@@ -287,12 +208,12 @@ jobs:
   - task: CMake@1
     displayName: CMake (MSVC; x64-Release) Config
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
+      cwd: $(Build.SourcesDirectory)
       cmakeArgs: --preset=x64-Release
   - task: CMake@1
     displayName: CMake (MSVC; x64-Release) Build
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
+      cwd: $(Build.SourcesDirectory)
       cmakeArgs: --build out/build/x64-Release -v
   - task: DeleteFiles@1
     inputs:
@@ -300,12 +221,12 @@ jobs:
   - task: CMake@1
     displayName: CMake (clang/LLVM; x64-Debug) Config
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
+      cwd: $(Build.SourcesDirectory)
       cmakeArgs: --preset=x64-Debug-Clang
   - task: CMake@1
     displayName: CMake (clang/LLVM; x64-Debug) Build
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
+      cwd: $(Build.SourcesDirectory)
       cmakeArgs: --build out/build/x64-Debug-Clang -v
   - task: DeleteFiles@1
     inputs:
@@ -313,12 +234,12 @@ jobs:
   - task: CMake@1
     displayName: CMake (clang/LLVM; x64-Release) Config
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
+      cwd: $(Build.SourcesDirectory)
       cmakeArgs: --preset=x64-Release-Clang
   - task: CMake@1
     displayName: CMake (clang/LLVM; x64-Release) Build
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
+      cwd: $(Build.SourcesDirectory)
       cmakeArgs: --build out/build/x64-Release-Clang -v
 
 - job: CMAKE_BUILD_ARM64
@@ -330,19 +251,14 @@ jobs:
   - checkout: self
     clean: true
     fetchTags: false
-  - task: DeleteFiles@1
-    displayName: Delete files from Tests
-    inputs:
-      SourceFolder: Tests
-      Contents: '**'
-      RemoveSourceFolder: true
-      RemoveDotFiles: true
-  - task: CmdLine@2
+    fetchDepth: 1
+    path: 's'
+  - checkout: testRepo
     displayName: Fetch Tests
-    inputs:
-      script: git clone --quiet --no-tags https://%GITHUB_PAT%@github.com/walbourn/directxtktest.git Tests
-      workingDirectory: $(Build.SourcesDirectory)
-      failOnStderr: true
+    clean: true
+    fetchTags: false
+    fetchDepth: 1
+    path: 's/Tests'
   - task: CmdLine@2
     displayName: Setup environment for CMake to use VS
     inputs:
@@ -361,75 +277,75 @@ jobs:
   - task: CMake@1
     displayName: CMake (MSVC; arm64-Debug) Config
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
-      cmakeArgs: --preset=arm64-Debug-Win10
+      cwd: $(Build.SourcesDirectory)
+      cmakeArgs: --preset=arm64-Debug
   - task: CMake@1
     displayName: CMake (MSVC; arm64-Debug) Build
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
-      cmakeArgs: --build out/build/arm64-Debug-Win10 -v
+      cwd: $(Build.SourcesDirectory)
+      cmakeArgs: --build out/build/arm64-Debug -v
   - task: DeleteFiles@1
     inputs:
       Contents: 'out'
   - task: CMake@1
     displayName: CMake (MSVC; arm64-Release) Config
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
-      cmakeArgs: --preset=arm64-Release-Win10
+      cwd: $(Build.SourcesDirectory)
+      cmakeArgs: --preset=arm64-Release
   - task: CMake@1
     displayName: CMake (MSVC; arm64-Release) Build
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
-      cmakeArgs: --build out/build/arm64-Release-Win10 -v
+      cwd: $(Build.SourcesDirectory)
+      cmakeArgs: --build out/build/arm64-Release -v
   - task: DeleteFiles@1
     inputs:
       Contents: 'out'
   - task: CMake@1
     displayName: CMake (clang/LLVM; arm64-Debug) Config
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
-      cmakeArgs: --preset=arm64-Debug-Win10-Clang
+      cwd: $(Build.SourcesDirectory)
+      cmakeArgs: --preset=arm64-Debug-Clang
   - task: CMake@1
     displayName: CMake (clang/LLVM; arm64-Debug) Build
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
-      cmakeArgs: --build out/build/arm64-Debug-Win10-Clang -v
+      cwd: $(Build.SourcesDirectory)
+      cmakeArgs: --build out/build/arm64-Debug-Clang -v
   - task: DeleteFiles@1
     inputs:
       Contents: 'out'
   - task: CMake@1
     displayName: CMake (clang/LLVM; arm64-Release) Config
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
-      cmakeArgs: --preset=arm64-Release-Win10-Clang
+      cwd: $(Build.SourcesDirectory)
+      cmakeArgs: --preset=arm64-Release-Clang
   - task: CMake@1
     displayName: CMake (clang/LLVM; arm64-Release) Build
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
-      cmakeArgs: --build out/build/arm64-Release-Win10-Clang -v
+      cwd: $(Build.SourcesDirectory)
+      cmakeArgs: --build out/build/arm64-Release-Clang -v
   - task: DeleteFiles@1
     inputs:
       Contents: 'out'
   - task: CMake@1
     displayName: CMake (MSVC; arm64ec-Debug) Config
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
-      cmakeArgs: --preset=arm64ec-Debug-Win10
+      cwd: $(Build.SourcesDirectory)
+      cmakeArgs: --preset=arm64ec-Debug
   - task: CMake@1
     displayName: CMake (MSVC; arm64ec-Debug) Build
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
-      cmakeArgs: --build out/build/arm64ec-Debug-Win10 -v
+      cwd: $(Build.SourcesDirectory)
+      cmakeArgs: --build out/build/arm64ec-Debug -v
   - task: DeleteFiles@1
     inputs:
       Contents: 'out'
   - task: CMake@1
     displayName: CMake (MSVC; arm64ec-Release) Config
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
-      cmakeArgs: --preset=arm64ec-Release-Win10
+      cwd: $(Build.SourcesDirectory)
+      cmakeArgs: --preset=arm64ec-Release
   - task: CMake@1
     displayName: CMake (MSVC; arm64ec-Release) Build
     inputs:
-      cwd: '$(Build.SourcesDirectory)'
-      cmakeArgs: --build out/build/arm64ec-Release-Win10 -v
+      cwd: $(Build.SourcesDirectory)
+      cmakeArgs: --build out/build/arm64ec-Release -v

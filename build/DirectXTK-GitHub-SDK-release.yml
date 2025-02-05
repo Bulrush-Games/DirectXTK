@@ -45,8 +45,6 @@ jobs:
     fetchTags: false
   - task: NuGetToolInstaller@1
     displayName: 'Use NuGet'
-    inputs:
-      versionSpec: '6.5.x'
   - task: PowerShell@2
     displayName: 'Create nuget.config with single source'
     inputs:
@@ -70,33 +68,29 @@ jobs:
       arguments: sources add -Name xboxgdk-DirectXTK -Source $(URL_FEED) -ConfigFile $(Build.SourcesDirectory)\NuGet.config
   - task: nuget-security-analysis@0
     displayName: 'Secure Supply Chain Analysis'
+  - task: NuGetAuthenticate@1
+    displayName: 'NuGet Auth'
   - task: NuGetCommand@2
     displayName: NuGet Install WSDK x64
     inputs:
       command: custom
-      arguments: install Microsoft.Windows.SDK.CPP.x64 -ExcludeVersion -OutputDirectory $(EXTRACTED_FOLDER)\SDK
+      arguments: install Microsoft.Windows.SDK.CPP.x64 -ExcludeVersion -OutputDirectory $(EXTRACTED_FOLDER)
   - task: NuGetCommand@2
     displayName: NuGet Install WSDK x86
     inputs:
       command: custom
-      arguments: install Microsoft.Windows.SDK.CPP.x86 -ExcludeVersion -OutputDirectory $(EXTRACTED_FOLDER)\SDK
+      arguments: install Microsoft.Windows.SDK.CPP.x86 -ExcludeVersion -OutputDirectory $(EXTRACTED_FOLDER)
   - task: NuGetCommand@2
     displayName: NuGet Install WSDK arm64
     inputs:
       command: custom
-      arguments: install Microsoft.Windows.SDK.CPP.arm64 -ExcludeVersion -OutputDirectory $(EXTRACTED_FOLDER)\SDK
+      arguments: install Microsoft.Windows.SDK.CPP.arm64 -ExcludeVersion -OutputDirectory $(EXTRACTED_FOLDER)
   - task: CopyFiles@2
     displayName: Set up Directory.Build.props
     inputs:
       SourceFolder: build
       Contents: 'Directory.Build.props'
       TargetFolder: $(Build.SourcesDirectory)
-  - task: NuGetCommand@2
-    displayName: NuGet restore
-    inputs:
-      solution: DirectXTK_Desktop_2019_Win7.sln
-      selectOrConfig: config
-      nugetConfigPath: NuGet.Config
   - task: VSBuild@1
     displayName: Build solution DirectXTK_Desktop_2019.sln 32dbg
     inputs:
@@ -122,34 +116,6 @@ jobs:
     displayName: Build solution DirectXTK_Desktop_2019.sln 64rel
     inputs:
       solution: DirectXTK_Desktop_2019.sln
-      msbuildArgs: /p:PreferredToolArchitecture=x64
-      platform: x64
-      configuration: Release
-  - task: VSBuild@1
-    displayName: Build solution DirectXTK_Desktop_2019_Win7.sln 32dbg
-    inputs:
-      solution: DirectXTK_Desktop_2019_Win7.sln
-      msbuildArgs: /p:PreferredToolArchitecture=x64
-      platform: x86
-      configuration: Debug
-  - task: VSBuild@1
-    displayName: Build solution DirectXTK_Desktop_2019_Win7.sln 32rel
-    inputs:
-      solution: DirectXTK_Desktop_2019_Win7.sln
-      msbuildArgs: /p:PreferredToolArchitecture=x64
-      platform: x86
-      configuration: Release
-  - task: VSBuild@1
-    displayName: Build solution DirectXTK_Desktop_2019.sln 64dbg
-    inputs:
-      solution: DirectXTK_Desktop_2019_Win7.sln
-      msbuildArgs: /p:PreferredToolArchitecture=x64
-      platform: x64
-      configuration: Debug
-  - task: VSBuild@1
-    displayName: Build solution DirectXTK_Desktop_2019_Win7.sln 64rel
-    inputs:
-      solution: DirectXTK_Desktop_2019_Win7.sln
       msbuildArgs: /p:PreferredToolArchitecture=x64
       platform: x64
       configuration: Release
@@ -201,17 +167,18 @@ jobs:
       msbuildArgs: /p:PreferredToolArchitecture=x64
       platform: x64
       configuration: Release
+  # VS 2019 for Win32 on ARM64 is out of support.
   - task: VSBuild@1
-    displayName: Build solution DirectXTK_Desktop_2019_Win10.sln arm64dbg
+    displayName: Build solution DirectXTK_Desktop_2022_Win10.sln arm64dbg
     inputs:
-      solution: DirectXTK_Desktop_2019_Win10.sln
+      solution: DirectXTK_Desktop_2022_Win10.sln
       msbuildArgs: /p:PreferredToolArchitecture=x64
       platform: ARM64
       configuration: Debug
   - task: VSBuild@1
-    displayName: Build solution DirectXTK_Desktop_2019_Win10.sln arm64rel
+    displayName: Build solution DirectXTK_Desktop_2022_Win10.sln arm64rel
     inputs:
-      solution: DirectXTK_Desktop_2019_Win10.sln
+      solution: DirectXTK_Desktop_2022_Win10.sln
       msbuildArgs: /p:PreferredToolArchitecture=x64
       platform: ARM64
       configuration: Release
@@ -226,8 +193,6 @@ jobs:
     fetchTags: false
   - task: NuGetToolInstaller@1
     displayName: 'Use NuGet'
-    inputs:
-      versionSpec: '6.5.x'
   - task: PowerShell@2
     displayName: 'Create nuget.config with single source'
     inputs:
@@ -250,16 +215,18 @@ jobs:
       arguments: sources add -Name xboxgdk-DirectXTK -Source $(URL_FEED) -ConfigFile $(Build.SourcesDirectory)\NuGet.config
   - task: nuget-security-analysis@0
     displayName: 'Secure Supply Chain Analysis'
+  - task: NuGetAuthenticate@1
+    displayName: 'NuGet Auth'
   - task: NuGetCommand@2
     displayName: NuGet Install WSDK x64
     inputs:
       command: custom
-      arguments: install Microsoft.Windows.SDK.CPP.x64 -ExcludeVersion -OutputDirectory $(EXTRACTED_FOLDER)\SDK
+      arguments: install Microsoft.Windows.SDK.CPP.x64 -ExcludeVersion -OutputDirectory $(EXTRACTED_FOLDER)
   - task: NuGetCommand@2
     displayName: NuGet Install WSDK x86
     inputs:
       command: custom
-      arguments: install Microsoft.Windows.SDK.CPP.x86 -ExcludeVersion -OutputDirectory $(EXTRACTED_FOLDER)\SDK
+      arguments: install Microsoft.Windows.SDK.CPP.x86 -ExcludeVersion -OutputDirectory $(EXTRACTED_FOLDER)
   - task: CopyFiles@2
     displayName: Set up Directory.Build.props
     inputs:
@@ -295,16 +262,15 @@ jobs:
       platform: x64
       configuration: Release
 
-- job: UWP_BUILD_ARM_ARM64
-  displayName: 'Universal Windows Platform (UWP) for ARM/ARM64'
+- job: UWP_BUILD_ARM64
+  displayName: 'Universal Windows Platform (UWP) for ARM64'
+  # Windows on ARM 32-bit is deprecated. https://learn.microsoft.com/windows/arm/arm32-to-arm64
   steps:
   - checkout: self
     clean: true
     fetchTags: false
   - task: NuGetToolInstaller@1
     displayName: 'Use NuGet'
-    inputs:
-      versionSpec: '6.5.x'
   - task: PowerShell@2
     displayName: 'Create nuget.config with single source'
     inputs:
@@ -327,11 +293,13 @@ jobs:
       arguments: sources add -Name xboxgdk-DirectXTK -Source $(URL_FEED) -ConfigFile $(Build.SourcesDirectory)\NuGet.config
   - task: nuget-security-analysis@0
     displayName: 'Secure Supply Chain Analysis'
+  - task: NuGetAuthenticate@1
+    displayName: 'NuGet Auth'
   - task: NuGetCommand@2
     displayName: NuGet Install WSDK arm64
     inputs:
       command: custom
-      arguments: install Microsoft.Windows.SDK.CPP.arm64 -ExcludeVersion -OutputDirectory $(EXTRACTED_FOLDER)\SDK
+      arguments: install Microsoft.Windows.SDK.CPP.arm64 -ExcludeVersion -OutputDirectory $(EXTRACTED_FOLDER)
   - task: CopyFiles@2
     displayName: Set up Directory.Build.props
     inputs:
