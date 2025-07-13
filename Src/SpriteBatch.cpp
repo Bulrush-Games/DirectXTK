@@ -329,6 +329,8 @@ SpriteBatch::Impl::ContextResources::ContextResources(_In_ ID3D11DeviceContext* 
     deviceContext = context;
 #endif
 
+    SetDebugObjectName(constantBuffer.GetBuffer(), "DirectXTK::SpriteBatch");
+
     CreateVertexBuffer();
 }
 
@@ -383,8 +385,7 @@ SpriteBatch::Impl::Impl(_In_ ID3D11DeviceContext* deviceContext)
     mTransformMatrix(MatrixIdentity),
     mDeviceResources(deviceResourcesPool.DemandCreate(GetDevice(deviceContext).Get())),
     mContextResources(contextResourcesPool.DemandCreate(deviceContext))
-{
-}
+{}
 
 
 // Begins a batch of sprite drawing operations.
@@ -1018,8 +1019,7 @@ XMMATRIX SpriteBatch::Impl::GetViewportTransform(_In_ ID3D11DeviceContext* devic
 // Public constructor.
 SpriteBatch::SpriteBatch(_In_ ID3D11DeviceContext* deviceContext)
     : pImpl(std::make_unique<Impl>(deviceContext))
-{
-}
+{}
 
 
 SpriteBatch::SpriteBatch(SpriteBatch&&) noexcept = default;

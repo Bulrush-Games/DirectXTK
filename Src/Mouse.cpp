@@ -21,6 +21,12 @@ using Microsoft::WRL::ComPtr;
 
 #include <GameInput.h>
 
+#if defined(GAMEINPUT_API_VERSION) && (GAMEINPUT_API_VERSION == 1)
+using namespace GameInput::v1;
+#elif defined(GAMEINPUT_API_VERSION) && (GAMEINPUT_API_VERSION == 2)
+using namespace GameInput::v2;
+#endif
+
 //======================================================================================
 // Win32 + GameInput implementation
 //======================================================================================
@@ -121,7 +127,11 @@ public:
         {
             if (mGameInput)
             {
+            #if defined(GAMEINPUT_API_VERSION) && (GAMEINPUT_API_VERSION >= 1)
+                if (!mGameInput->UnregisterCallback(mDeviceToken))
+            #else
                 if (!mGameInput->UnregisterCallback(mDeviceToken, UINT64_MAX))
+            #endif
                 {
                     DebugTrace("ERROR: GameInput::UnregisterCallback [mouse] failed");
                 }
@@ -219,7 +229,7 @@ public:
         {
             ShowCursor(TRUE);
 
-#ifndef _GAMING_XBOX
+        #ifndef _GAMING_XBOX
             POINT point;
             point.x = mState.x;
             point.y = mState.y;
@@ -230,7 +240,7 @@ public:
             }
 
             ClipCursor(nullptr);
-#endif
+        #endif
         }
     }
 
@@ -312,15 +322,18 @@ private:
         _In_ IGameInputDevice *,
         _In_ uint64_t,
         _In_ GameInputDeviceStatus currentStatus,
-        _In_ GameInputDeviceStatus) noexcept
+        _In_ GameInputDeviceStatus previousStatus) noexcept
     {
         auto impl = reinterpret_cast<Mouse::Impl*>(context);
 
-        if (currentStatus & GameInputDeviceConnected)
+        const bool wasConnected = (previousStatus & GameInputDeviceConnected) != 0;
+        const bool isConnected = (currentStatus & GameInputDeviceConnected) != 0;
+
+        if (isConnected && !wasConnected)
         {
             ++impl->mConnected;
         }
-        else if (impl->mConnected > 0)
+        else if (!isConnected && wasConnected && impl->mConnected > 0)
         {
             --impl->mConnected;
         }
@@ -328,7 +341,7 @@ private:
 
     void ClipToWindow() noexcept
     {
-#ifndef _GAMING_XBOX
+    #ifndef _GAMING_XBOX
         assert(mWindow != nullptr);
 
         RECT rect;
@@ -352,7 +365,7 @@ private:
         rect.bottom = lr.y;
 
         ClipCursor(&rect);
-#endif
+    #endif
     }
 };
 
@@ -393,9 +406,9 @@ void Mouse::ProcessMessage(UINT message, WPARAM wParam, LPARAM lParam)
             }
             else
             {
-#ifndef _GAMING_XBOX
+            #ifndef _GAMING_XBOX
                 ClipCursor(nullptr);
-#endif
+            #endif
             }
         }
         else
@@ -1557,8 +1570,7 @@ void Mouse::ProcessMessage(UINT message, WPARAM wParam, LPARAM lParam)
 // Public constructor.
 Mouse::Mouse() noexcept(false)
     : pImpl(std::make_unique<Impl>(this))
-{
-}
+{}
 
 
 // Move constructor.
