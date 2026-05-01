@@ -4,7 +4,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 //
-// http://go.microsoft.com/fwlink/?LinkId=248929
+// https://go.microsoft.com/fwlink/?LinkId=248929
 //--------------------------------------------------------------------------------------
 
 #include "pch.h"
@@ -95,7 +95,10 @@ public:
         mDevice(device),
         mSharing(true),
         mForceSRGB(false)
-    {}
+    {
+        if (!device)
+            throw std::invalid_argument("Direct3D device is null");
+    }
 
     Impl(const Impl&) = delete;
     Impl& operator=(const Impl&) = delete;

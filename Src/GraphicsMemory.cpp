@@ -4,7 +4,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 //
-// http://go.microsoft.com/fwlink/?LinkId=248929
+// https://go.microsoft.com/fwlink/?LinkId=248929
 //--------------------------------------------------------------------------------------
 
 #include "pch.h"
@@ -64,7 +64,9 @@ public:
 
     void Initialize(_In_ ID3D11DeviceX* device, unsigned int backBufferCount)
     {
-        assert(device != nullptr);
+        if (!device)
+            throw std::invalid_argument("Direct3D device is null");
+
         mDevice = device;
 
         device->GetImmediateContextX(mDeviceContext.GetAddressOf());
@@ -245,9 +247,11 @@ public:
         s_graphicsMemory = nullptr;
     }
 
-    void Initialize(_In_ ID3D11Device* device, unsigned int backBufferCount) noexcept
+    void Initialize(_In_ ID3D11Device* device, unsigned int backBufferCount)
     {
-        UNREFERENCED_PARAMETER(device);
+        if (!device)
+            throw std::invalid_argument("Direct3D device is null");
+
         UNREFERENCED_PARAMETER(backBufferCount);
     }
 

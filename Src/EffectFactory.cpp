@@ -4,7 +4,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 //
-// http://go.microsoft.com/fwlink/?LinkId=248929
+// https://go.microsoft.com/fwlink/?LinkId=248929
 //--------------------------------------------------------------------------------------
 
 #include "pch.h"
@@ -68,6 +68,9 @@ public:
         mUseNormalMapEffect(true),
         mForceSRGB(false)
     {
+        if (!device)
+            throw std::invalid_argument("Direct3D device is null");
+
         if (device->GetFeatureLevel() < D3D_FEATURE_LEVEL_10_0)
         {
             mUseNormalMapEffect = false;
